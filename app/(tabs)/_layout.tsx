@@ -47,15 +47,8 @@ export default function TabLayout() {
             <Tabs.Screen
                 name="skin-quiz"
                 options={{
-                    title: 'Skin Quiz',
+                    title: 'Quiz',
                     tabBarIcon: ({ color }) => <TabBarIcon name="question-circle" color={color} />,
-                }}
-            />
-            <Tabs.Screen
-                name="routines"
-                options={{
-                    title: 'Routines',
-                    tabBarIcon: ({ color }) => <TabBarIcon name="list-alt" color={color} />,
                 }}
             />
             <Tabs.Screen
