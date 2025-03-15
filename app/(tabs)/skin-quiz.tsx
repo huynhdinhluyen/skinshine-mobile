@@ -55,26 +55,26 @@ export default function SkinQuizScreen() {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(30)).current;
 
-    // useEffect(() => {
-    //     loadQuestions();
-    //
-    //     // Check if user already has skin type result
-    //     const checkExistingResult = async () => {
-    //         try {
-    //             const result = await getSkinTestResult(MOCK_USER_ID);
-    //             if (result && result.skinType) {
-    //                 setSkinTypeResult(result.skinType);
-    //                 setQuizCompleted(true);
-    //                 setShowWelcome(false);
-    //                 loadSkinTypeData(result.skinType as SkinType);
-    //             }
-    //         } catch (error) {
-    //             console.error('Error checking existing skin test result:', error);
-    //         }
-    //     };
-    //
-    //     checkExistingResult();
-    // }, []);
+    useEffect(() => {
+        loadQuestions();
+
+        // // Check if user already has skin type result
+        // const checkExistingResult = async () => {
+        //     try {
+        //         const result = await getSkinTestResult(MOCK_USER_ID);
+        //         if (result && result.skinType) {
+        //             setSkinTypeResult(result.skinType);
+        //             setQuizCompleted(true);
+        //             setShowWelcome(false);
+        //             loadSkinTypeData(result.skinType as SkinType);
+        //         }
+        //     } catch (error) {
+        //         console.error('Error checking existing skin test result:', error);
+        //     }
+        // };
+        //
+        // checkExistingResult();
+    }, []);
 
     useEffect(() => {
         // Run animations when content changes
@@ -91,7 +91,6 @@ export default function SkinQuizScreen() {
             })
         ]).start();
 
-        // Reset animation values when component unmounts
         return () => {
             fadeAnim.setValue(0);
             slideAnim.setValue(30);
@@ -131,6 +130,7 @@ export default function SkinQuizScreen() {
     const startQuiz = () => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setShowWelcome(false);
+        loadQuestions();
         setCurrentQuestion(0);
         setAnswers([]);
         setQuizCompleted(false);
@@ -140,7 +140,6 @@ export default function SkinQuizScreen() {
     const handleAnswer = (questionId: string, optionId: string) => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 
-        // Update answers
         const existingAnswerIndex = answers.findIndex(a => a.questionId === questionId);
 
         if (existingAnswerIndex !== -1) {
@@ -161,14 +160,19 @@ export default function SkinQuizScreen() {
         }, 500);
     };
 
+    const handlePrevious = () => {
+        if (currentQuestion > 0) {
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setCurrentQuestion(currentQuestion - 1);
+        }
+    };
+
     const completeQuiz = async () => {
         setSubmitting(true);
         try {
-            // Calculate total points
             const totalPoints = calculatePoints();
             let skinType: SkinType;
 
-            // Determine skin type based on points
             if (totalPoints >= 20) {
                 skinType = 'OILY';
             } else if (totalPoints >= 15) {
@@ -497,6 +501,20 @@ export default function SkinQuizScreen() {
                     })}
                 </View>
 
+                <View style={styles.navigationRow}>
+                    {currentQuestion > 0 && (
+                        <TouchableOpacity
+                            style={styles.prevButton}
+                            onPress={handlePrevious}
+                            disabled={submitting}
+                        >
+                            <FontAwesome name="angle-left" size={20} color="#666" />
+                            <Text style={styles.prevButtonText}>Previous</Text>
+                        </TouchableOpacity>
+                    )}
+                    <Text style={styles.progressText}>{currentQuestion + 1}/{questions.length}</Text>
+                </View>
+
                 {submitting && (
                     <View style={styles.submittingContainer}>
                         <ActivityIndicator size="large" color="#2f95dc"/>
@@ -656,6 +674,28 @@ const styles = StyleSheet.create({
     },
     checkmark: {
         backgroundColor: 'transparent',
+    },
+    navigationRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingTop: 16,
+        paddingBottom: 8,
+        backgroundColor: 'transparent',
+    },
+    prevButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 8,
+        borderRadius: 8,
+        backgroundColor: '#f0f0f0',
+    },
+    prevButtonText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#666',
+        marginLeft: 5,
     },
     submittingContainer: {
         position: 'absolute',
