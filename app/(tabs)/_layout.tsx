@@ -5,7 +5,6 @@ import { Pressable } from "react-native";
 import Colors from "@/constants/Colors";
 import { useColorScheme } from "@/components/useColorScheme";
 import { useClientOnlyValue } from "@/components/useClientOnlyValue";
-import { AntDesign } from "@expo/vector-icons";
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>["name"];
@@ -19,6 +18,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      initialRouteName="home"
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
         tabBarInactiveTintColor: "#888888",
@@ -78,10 +78,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="account"
+        name="profile"
         options={{
           headerShown: false,
-          tabBarLabel: "Tài khoản",
+          tabBarLabel: "Hồ sơ",
           tabBarIcon: ({ color, size }) => (
             <FontAwesome name="user" size={size} color={color} />
           ),
