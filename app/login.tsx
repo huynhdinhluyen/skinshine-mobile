@@ -6,11 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  ToastAndroid,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
-// Giả sử API_URL được lấy từ biến môi trường (hoặc constants)
-// hoặc bạn có thể sử dụng Babel plugin để import trực tiếp từ .env.
+import { Ionicons } from "@expo/vector-icons";
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function LoginScreen() {
@@ -19,13 +19,20 @@ export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuth();
 
-  // Reset lại state mỗi khi màn hình được focus
   useFocusEffect(
     useCallback(() => {
       setEmail("");
       setPassword("");
     }, [])
   );
+
+  const handleGoBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)/home");
+    }
+  };
 
   const handleLogin = async () => {
     try {
@@ -47,9 +54,16 @@ export default function LoginScreen() {
             "Lỗi đăng nhập",
             error.message || "Token không hợp lệ, vui lòng thử lại!"
           );
-          router.replace("/(tabs)/account");
+          router.replace("/login");
           return;
         }
+
+        ToastAndroid.showWithGravity(
+          "Đăng nhập thành công!",
+          ToastAndroid.SHORT,
+          ToastAndroid.CENTER
+        );
+
         router.replace("/(tabs)/home");
       } else {
         Alert.alert(
@@ -64,12 +78,15 @@ export default function LoginScreen() {
   };
 
   const handleSignup = () => {
-    router.replace("/signup");
+    router.push("/signup");
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Đăng nhập</Text>
       </View>
       <Text style={styles.description}>
@@ -107,10 +124,16 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: "#2f95dc",
-    paddingVertical: 15,
+    height: 50,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 20,
+    position: "relative",
+    marginBottom: 12,
+  },
+  backButton: {
+    position: "absolute",
+    left: 10,
+    top: 13,
   },
   headerTitle: {
     color: "#fff",
@@ -120,6 +143,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 20,
     marginBottom: 12,
+    textTransform: "uppercase",
   },
   input: {
     marginHorizontal: 12,

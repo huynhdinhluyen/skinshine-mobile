@@ -7,6 +7,9 @@ interface User {
   fullName: string;
   email: string;
   phone: string;
+  city: string;
+  address: string;
+  token?: string;
 }
 
 interface AuthContextData {
@@ -52,11 +55,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     if (typeof token !== "string" || token.trim() === "") {
       throw new Error("Token không hợp lệ");
     }
-
     const decoded: User = jwtDecode(token);
+    const userWithToken: User = {
+      ...decoded,
+      token: token,
+    };
     await AsyncStorage.setItem("token", token);
-    await AsyncStorage.setItem("user", JSON.stringify(decoded));
-    setUser(decoded);
+    await AsyncStorage.setItem("user", JSON.stringify(userWithToken));
+    setUser(userWithToken);
   };
 
   const logout = async () => {

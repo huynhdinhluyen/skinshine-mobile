@@ -8,6 +8,7 @@ import {
   Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 const errorMessageMap: Record<string, string> = {
   "username should not be empty": "Tên đăng nhập không được để trống",
@@ -54,7 +55,7 @@ export default function SignupScreen() {
           "Đăng ký thành công",
           "Vui lòng đăng nhập với tài khoản mới"
         );
-        router.replace("/(tabs)/account");
+        router.replace("/login");
       } else {
         if (Array.isArray(data?.message)) {
           const translated = data.message.map((msg: string) => {
@@ -79,12 +80,23 @@ export default function SignupScreen() {
   };
 
   const handleLogin = () => {
-    router.replace("/account");
+    router.push("/login");
+  };
+
+  const handleGoBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)/home");
+    }
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Đăng ký</Text>
       </View>
       <Text style={styles.description}>
@@ -141,10 +153,16 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: "#2f95dc",
-    paddingVertical: 15,
+    height: 50,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 20,
+    position: "relative",
+    marginBottom: 12,
+  },
+  backButton: {
+    position: "absolute",
+    left: 10,
+    top: 13,
   },
   headerTitle: {
     color: "#fff",

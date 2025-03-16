@@ -26,7 +26,6 @@ export default function HomeScreen() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const { user } = useAuth();
 
   // Fetch products when component mounts or category changes
   useEffect(() => {
@@ -113,7 +112,7 @@ export default function HomeScreen() {
       </RNView>
 
       <View style={styles.header}>
-        <Text style={styles.title}>Discover {user?.fullName}</Text>
+        <Text style={styles.title}>Discover</Text>
         <Text style={styles.subtitle}>Find the perfect skincare products</Text>
       </View>
 
