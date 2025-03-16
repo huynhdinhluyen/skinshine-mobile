@@ -9,11 +9,23 @@ import {
   Animated,
   Share,
   Platform,
+  Modal,
+  TextInput,
+  FlatList,
 } from "react-native";
 import { Text, View } from "@/components/Themed";
 import { FontAwesome } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter, Stack } from "expo-router";
-import { getProductById } from "@/services/product.service";
+import {
+  useLocalSearchParams,
+  useRouter,
+  Stack,
+  useFocusEffect,
+} from "expo-router";
+import {
+  getProductById,
+  getProducts,
+  ProductQueryParams,
+} from "@/services/product.service";
 import { Product } from "@/types/product/product";
 
 const { width } = Dimensions.get("window");
@@ -26,6 +38,15 @@ export default function ProductDetailScreen() {
   const [currentImage, setCurrentImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [isFavorite, setIsFavorite] = useState(false);
+
+  const [isCompareModalVisible, setIsCompareModalVisible] = useState(false);
+  const [comparisonProducts, setComparisonProducts] = useState<
+    (Product | null)[]
+  >([null, null]);
+  const [editingSlot, setEditingSlot] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(100)).current;
 
@@ -44,6 +65,14 @@ export default function ProductDetailScreen() {
       }),
     ]).start();
   }, [_id]);
+
+  useEffect(() => {
+    if (searchQuery.length > 0) {
+      handleSearch();
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchQuery]);
 
   const fetchProductDetails = async () => {
     try {
@@ -74,7 +103,6 @@ export default function ProductDetailScreen() {
 
   const handleShare = async () => {
     if (!product) return;
-
     try {
       await Share.share({
         message: `Check out ${product.name} by ${product.brand} - A great skincare product!`,
@@ -85,6 +113,75 @@ export default function ProductDetailScreen() {
       console.error("Error sharing product:", error);
     }
   };
+
+  const handleOpenCompareModal = () => {
+    setIsCompareModalVisible(true);
+    setEditingSlot(null);
+    setSearchQuery("");
+    setSearchResults([]);
+  };
+
+  const handleCloseCompareModal = () => {
+    setIsCompareModalVisible(false);
+    setEditingSlot(null);
+    setSearchQuery("");
+    setSearchResults([]);
+  };
+
+  const handleEditSlot = (slotIndex: number) => {
+    setEditingSlot(slotIndex);
+    setSearchQuery("");
+    setSearchResults([]);
+  };
+
+  const handleSearch = async () => {
+    try {
+      const params: ProductQueryParams = { search: searchQuery };
+      const results = await getProducts(params);
+      setSearchResults(results);
+    } catch (error) {
+      console.error("Error searching products:", error);
+    }
+  };
+
+  const handleChooseComparisonProduct = (item: Product) => {
+    if (editingSlot !== null) {
+      const newComparisons = [...comparisonProducts];
+      newComparisons[editingSlot] = item;
+      setComparisonProducts(newComparisons);
+      setEditingSlot(null);
+      setSearchQuery("");
+      setSearchResults([]);
+    }
+  };
+
+  const handleCompare = () => {
+    if (product) {
+      const params: { [key: string]: string } = { product1: product._id };
+      comparisonProducts.forEach((prod, index) => {
+        if (prod) {
+          params[`product${index + 2}`] = prod._id;
+        }
+      });
+      if (Object.keys(params).length < 2) {
+        alert("Vui lòng chọn ít nhất 1 sản phẩm để so sánh.");
+        return;
+      }
+      router.push({ pathname: "/compare", params });
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setIsCompareModalVisible(false);
+      setComparisonProducts([null, null]);
+      setEditingSlot(null);
+      setSearchQuery("");
+      setSearchResults([]);
+
+      return () => {};
+    }, [])
+  );
 
   if (loading) {
     return (
@@ -146,7 +243,6 @@ export default function ProductDetailScreen() {
           ),
         }}
       />
-
       <ScrollView
         style={styles.container}
         showsVerticalScrollIndicator={false}
@@ -192,17 +288,13 @@ export default function ProductDetailScreen() {
         <Animated.View
           style={[
             styles.infoContainer,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
+            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
           ]}
         >
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Text style={styles.brand}>{product.brand}</Text>
               <Text style={styles.name}>{product.name}</Text>
-
               <View style={styles.ratingContainer}>
                 {[1, 2, 3, 4, 5].map((star) => (
                   <FontAwesome
@@ -214,17 +306,19 @@ export default function ProductDetailScreen() {
                   />
                 ))}
                 <Text style={styles.reviewCount}>(42 reviews)</Text>
+                <TouchableOpacity onPress={handleOpenCompareModal}>
+                  <Text style={styles.compareText}>So sánh sản phẩm</Text>
+                </TouchableOpacity>
               </View>
             </View>
-
             <View style={styles.headerRight}>
               {product.discountedPrice < product.originalPrice ? (
                 <>
                   <Text style={styles.originalPrice}>
-                    đ{product.originalPrice.toFixed(2)}
+                    {product.originalPrice.toLocaleString()}đ
                   </Text>
                   <Text style={styles.price}>
-                    đ{product.discountedPrice.toFixed(2)}
+                    {product.discountedPrice.toLocaleString()}đ
                   </Text>
                   <View style={styles.discountBadge}>
                     <Text style={styles.discountText}>
@@ -237,7 +331,9 @@ export default function ProductDetailScreen() {
                   </View>
                 </>
               ) : (
-                <Text style={styles.price}>đ{product.price.toFixed(2)}</Text>
+                <Text style={styles.price}>
+                  {product.price.toLocaleString()}đ
+                </Text>
               )}
             </View>
           </View>
@@ -263,7 +359,6 @@ export default function ProductDetailScreen() {
                 <Text style={styles.detailText}>{product.origin}</Text>
               </View>
             </View>
-
             <View style={styles.detailRow}>
               <View style={styles.detailItem}>
                 <FontAwesome
@@ -289,12 +384,10 @@ export default function ProductDetailScreen() {
               </View>
             </View>
           </View>
-
           <View style={styles.descriptionContainer}>
             <Text style={styles.sectionTitle}>Description</Text>
             <Text style={styles.description}>{product.description}</Text>
           </View>
-
           <View style={styles.keyFeaturesContainer}>
             <Text style={styles.sectionTitle}>Key Benefits</Text>
             <View style={styles.benefitsList}>
@@ -324,7 +417,6 @@ export default function ProductDetailScreen() {
               </View>
             </View>
           </View>
-
           <View style={styles.howToUseContainer}>
             <Text style={styles.sectionTitle}>How to Use</Text>
             <Text style={styles.howToUseText}>
@@ -335,7 +427,6 @@ export default function ProductDetailScreen() {
           </View>
         </Animated.View>
       </ScrollView>
-
       {/* Add to Cart Button */}
       <View style={styles.footer}>
         <View style={styles.quantitySelector}>
@@ -362,7 +453,6 @@ export default function ProductDetailScreen() {
             <Text style={styles.quantityButtonText}>+</Text>
           </TouchableOpacity>
         </View>
-
         <TouchableOpacity
           style={styles.addToCartButton}
           onPress={handleAddToCart}
@@ -376,6 +466,116 @@ export default function ProductDetailScreen() {
           <Text style={styles.addToCartText}>Add to Cart</Text>
         </TouchableOpacity>
       </View>
+      {/* Modal So sánh sản phẩm cho tối đa 3 sản phẩm (1 sản phẩm hiện tại + 2 so sánh) */}
+      <Modal transparent animationType="slide" visible={isCompareModalVisible}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>So sánh sản phẩm</Text>
+            <ScrollView
+              horizontal
+              contentContainerStyle={styles.compareSlotsContainer}
+            >
+              <View style={styles.compareSlot}>
+                <Text style={styles.slotTitle}>Sản phẩm hiện tại</Text>
+                <Image
+                  source={{
+                    uri: product.images[0] || "https://via.placeholder.com/80",
+                  }}
+                  style={styles.compareImage}
+                  resizeMode="cover"
+                />
+                <Text
+                  style={styles.slotName}
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                >
+                  {product.name}
+                </Text>
+              </View>
+
+              {comparisonProducts.map((comp, index) => (
+                <View key={index} style={styles.compareSlot}>
+                  <Text style={styles.slotTitle}>Sản phẩm {index + 2}</Text>
+
+                  {editingSlot === index ? (
+                    <View style={styles.searchContainer}>
+                      <TextInput
+                        style={styles.searchInput}
+                        placeholder="Nhập tên sản phẩm"
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                      />
+
+                      <FlatList
+                        data={searchResults}
+                        keyExtractor={(item) => item._id}
+                        renderItem={({ item }) => (
+                          <TouchableOpacity
+                            style={styles.searchResultItem}
+                            onPress={() => handleChooseComparisonProduct(item)}
+                          >
+                            <Text numberOfLines={2} ellipsizeMode="tail">
+                              {item.name}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                        style={styles.searchResultsContainer}
+                      />
+                    </View>
+                  ) : comp ? (
+                    <>
+                      <Image
+                        source={{
+                          uri:
+                            comp.images[0] || "https://via.placeholder.com/80",
+                        }}
+                        style={styles.compareImage}
+                        resizeMode="cover"
+                      />
+                      <Text
+                        style={styles.slotName}
+                        numberOfLines={2}
+                        ellipsizeMode="tail"
+                      >
+                        {comp.name}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => handleEditSlot(index)}
+                        style={styles.editSlotButton}
+                      >
+                        <Text style={styles.editSlotButtonText}>Chỉnh sửa</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.emptySlot}
+                      onPress={() => handleEditSlot(index)}
+                    >
+                      <Text style={{ textAlign: "center" }}>Thêm sản phẩm</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+
+            {/* Nút So sánh */}
+            {comparisonProducts.some((prod) => prod) && (
+              <TouchableOpacity
+                style={styles.compareButton}
+                onPress={handleCompare}
+              >
+                <Text style={styles.compareButtonText}>So sánh</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              onPress={handleCloseCompareModal}
+              style={styles.closeButton}
+            >
+              <Text style={styles.closeButtonText}>Đóng</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -390,6 +590,33 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    backgroundColor: "transparent",
+  },
+  headerButton: {
+    padding: 8,
+    marginLeft: 8,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: "#2f95dc",
+    borderRadius: 25,
+  },
+  backButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
   container: {
     flex: 1,
@@ -411,34 +638,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     color: "#666",
   },
-  backButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    backgroundColor: "#2f95dc",
-    borderRadius: 25,
-  },
-  backButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  headerButtons: {
-    flexDirection: "row",
-    backgroundColor: "transparent",
-    paddingRight: 10,
-  },
-  headerButton: {
-    padding: 8,
-    marginLeft: 8,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    borderRadius: 20,
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   productImage: {
-    width,
+    width: width,
     height: width,
   },
   pagination: {
@@ -464,7 +665,7 @@ const styles = StyleSheet.create({
   infoContainer: {
     paddingHorizontal: 20,
     paddingTop: 25,
-    paddingBottom: 100, // Space for the footer
+    paddingBottom: 100,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     marginTop: -25,
@@ -511,6 +712,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
     marginLeft: 8,
+  },
+  compareText: {
+    fontSize: 14,
+    color: "#2f95dc",
+    marginLeft: 8,
+    textDecorationLine: "underline",
   },
   originalPrice: {
     fontSize: 16,
@@ -678,6 +885,128 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   addToCartText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  // Styles cho modal so sánh
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    width: "95%",
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  compareSlotsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  compareSlot: {
+    width: 120,
+    alignItems: "center",
+    marginHorizontal: 5,
+    height: 200,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    borderRadius: 10,
+  },
+  slotTitle: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 5,
+  },
+  compareImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    marginBottom: 5,
+  },
+  slotName: {
+    fontSize: 12,
+    textAlign: "center",
+  },
+  emptySlot: {
+    width: "100%",
+    height: 100,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  editSlotButton: {
+    backgroundColor: "#2f95dc",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    marginTop: 12,
+  },
+  editSlotButtonText: {
+    color: "#fff",
+    fontSize: 10,
+  },
+  searchContainer: {
+    width: "100%",
+  },
+  searchInput: {
+    height: 40,
+    borderColor: "#ccc",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+  },
+  searchButton: {
+    backgroundColor: "#2f95dc",
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  searchButtonText: {
+    color: "#fff",
+    fontSize: 16,
+  },
+  searchResultsContainer: {
+    maxHeight: 150,
+  },
+  searchResultItem: {
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  compareButton: {
+    backgroundColor: "#2f95dc",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    marginVertical: 10,
+    alignSelf: "center",
+  },
+  compareButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  closeButton: {
+    alignSelf: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: "#2f95dc",
+    borderRadius: 25,
+    marginTop: 10,
+  },
+  closeButtonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
