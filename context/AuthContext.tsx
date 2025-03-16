@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { jwtDecode } from "jwt-decode";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 
 interface User {
   id: string;
@@ -9,6 +10,7 @@ interface User {
   phone: string;
   city: string;
   address: string;
+  role: string;
   token?: string;
 }
 
@@ -47,6 +49,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const router = useRouter();
+
   useEffect(() => {
     loadUser();
   }, []);
@@ -63,6 +67,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     await AsyncStorage.setItem("token", token);
     await AsyncStorage.setItem("user", JSON.stringify(userWithToken));
     setUser(userWithToken);
+    if (userWithToken?.role === "STAFF") {
+      router.push("/staff" as any);
+    } else if (userWithToken?.role === "MANAGER") {
+      router.push("/admin" as any);
+    } else {
+      router.push("/home");
+    }
   };
 
   const logout = async () => {
