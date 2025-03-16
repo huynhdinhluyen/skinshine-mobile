@@ -17,7 +17,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, user } = useAuth();
 
   useFocusEffect(
     useCallback(() => {
@@ -63,8 +63,6 @@ export default function LoginScreen() {
           ToastAndroid.SHORT,
           ToastAndroid.CENTER
         );
-
-        router.replace("/(tabs)/home");
       } else {
         Alert.alert(
           "Đăng nhập thất bại",
