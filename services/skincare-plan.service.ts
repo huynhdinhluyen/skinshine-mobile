@@ -5,23 +5,13 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 interface SkincarePlanResponse {
     success: boolean;
-    data: {
-        success: boolean;
-        data: SkincarePlan;
-        message: string;
-    };
+    data: SkincarePlan;
     timestamp: string;
 }
 
 interface SkincarePlanProductsResponse {
     success: boolean;
-    data: {
-        success: boolean;
-        data: Product[];
-        totalCount: number;
-        totalPages: number;
-        message: string;
-    };
+    data: Product[];
     timestamp: string;
 }
 
@@ -33,7 +23,7 @@ export const getSkincarePlan = async (skinType: SkinType): Promise<SkincarePlan 
         }
 
         const result: SkincarePlanResponse = await response.json();
-        return result.data.data || null;
+        return result.data || null;
     } catch (error) {
         console.error(`Error fetching skincare plan for ${skinType} skin:`, error);
         return null;
@@ -48,7 +38,7 @@ export const getRecommendProducts = async (skinType: SkinType): Promise<Product[
         }
 
         const result: SkincarePlanProductsResponse = await response.json();
-        return result.data.data || [];
+        return result.data || [];
     } catch (error) {
         console.error(`Error fetching recommended products for ${skinType} skin:`, error);
         return [];
