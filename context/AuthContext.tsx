@@ -68,7 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     await AsyncStorage.setItem("user", JSON.stringify(userWithToken));
     setUser(userWithToken);
     if (userWithToken?.role === "STAFF") {
-      router.push("/staff" as any);
+      router.replace("/staff" as any);
     } else if (userWithToken?.role === "MANAGER") {
       router.push("/admin" as any);
     } else {
