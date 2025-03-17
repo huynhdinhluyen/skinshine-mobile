@@ -13,6 +13,10 @@ import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
+const errorMessageMap: Record<string, string> = {
+  "Email or Password is not correct": "Email hoặc mật khẩu không đúng",
+};
+
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -64,10 +68,9 @@ export default function LoginScreen() {
           ToastAndroid.CENTER
         );
       } else {
-        Alert.alert(
-          "Đăng nhập thất bại",
-          data?.message || "Sai thông tin đăng nhập"
-        );
+        const serverMessage = data?.message || "Sai thông tin đăng nhập";
+        const displayMessage = errorMessageMap[serverMessage] || serverMessage;
+        Alert.alert("Đăng nhập thất bại", displayMessage);
       }
     } catch (error) {
       console.error("Error during login:", error);
