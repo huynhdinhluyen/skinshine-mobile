@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import "react-native-reanimated";
 
 import { AuthProvider } from "@/context/AuthContext";
+import { CartProvider } from "@/context/CartContext";
 
 export { ErrorBoundary } from "expo-router";
 
@@ -37,12 +38,14 @@ export default function RootLayout() {
 function RootLayoutNav() {
   return (
     <AuthProvider>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="signup" options={{ headerShown: false }} />
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="compare" options={{ headerShown: false }} />
-      </Stack>
+      <CartProvider>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="signup" options={{ headerShown: false }} />
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="compare" options={{ headerShown: false }} />
+        </Stack>
+      </CartProvider>
     </AuthProvider>
   );
 }
