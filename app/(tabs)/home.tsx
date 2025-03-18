@@ -16,7 +16,6 @@ import { Product } from "@/types/product/product";
 import ProductList from "@/components/product/ProductList";
 import CategoryFilter from "@/components/category/CategoryFilter";
 import { useFocusEffect } from "@react-navigation/native";
-import { useAuth } from "@/context/AuthContext";
 
 export default function HomeScreen() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -106,20 +105,20 @@ export default function HomeScreen() {
         <RNView style={styles.heroOverlay}>
           <Text style={styles.heroTitle}>Natural Beauty</Text>
           <Text style={styles.heroSubtitle}>
-            Discover products for your skin type
+            Khám phá các sản phẩm phuf hợp với làn da của bạn
           </Text>
         </RNView>
       </RNView>
 
       <View style={styles.header}>
-        <Text style={styles.title}>Discover</Text>
-        <Text style={styles.subtitle}>Find the perfect skincare products</Text>
+        <Text style={styles.title}>KHÁM PHÁ NGAY</Text>
+        <Text style={styles.subtitle}>Tìm các sản phẩm dành riêng cho bạn</Text>
       </View>
 
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Search products..."
+          placeholder="Tìm kiếm sản phẩm..."
           value={searchQuery}
           onChangeText={setSearchQuery}
           onSubmitEditing={handleSearch}
