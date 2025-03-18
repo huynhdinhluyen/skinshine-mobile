@@ -14,6 +14,7 @@ import {
 	ListRenderItemInfo,
 	Platform,
 	Image,
+	Picker,
 } from 'react-native';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
@@ -72,18 +73,51 @@ interface CategoryFormData {
 	description: string;
 }
 
+// Thêm interface User
+interface OrderStats {
+	orderCount: number;
+	totalSpent: number;
+}
+
+interface User {
+	_id: string;
+	email: string;
+	username: string;
+	fullName: string;
+	role: string;
+	isActive: boolean;
+	address?: string;
+	city?: string;
+	phone?: string;
+	orderStats?: OrderStats;
+	createdAt?: string;
+	updatedAt?: string;
+}
+
+interface UserFormData {
+	email: string;
+	fullName: string;
+	role: string;
+	address: string;
+	city: string;
+	phone: string;
+}
+
 export default function AdminScreen() {
 	const { user } = useAuth();
 	const token = user?.token;
 
-	const [activeTab, setActiveTab] = useState<'products' | 'categories'>('products');
+	const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'users'>('products');
 	const [products, setProducts] = useState<Product[]>([]);
 	const [categories, setCategories] = useState<Category[]>([]);
+	const [users, setUsers] = useState<User[]>([]);
 	const [isLoading, setIsLoading] = useState<boolean>(false);
 	const [productModalVisible, setProductModalVisible] = useState<boolean>(false);
 	const [categoryModalVisible, setCategoryModalVisible] = useState<boolean>(false);
+	const [userModalVisible, setUserModalVisible] = useState<boolean>(false);
 	const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
 	const [currentCategory, setCurrentCategory] = useState<Category | null>(null);
+	const [currentUser, setCurrentUser] = useState<User | null>(null);
 
 	// Product form state
 	const [productForm, setProductForm] = useState<ProductFormData>({
@@ -105,10 +139,21 @@ export default function AdminScreen() {
 		description: '',
 	});
 
+	// User form state
+	const [userForm, setUserForm] = useState<UserFormData>({
+		email: '',
+		fullName: '',
+		role: 'USER',
+		address: '',
+		city: '',
+		phone: '',
+	});
+
 	useEffect(() => {
 		if (token) {
 			fetchProducts();
 			fetchCategories();
+			fetchUsers();
 		}
 	}, [token]);
 
@@ -307,6 +352,60 @@ export default function AdminScreen() {
 		}
 	};
 
+	// API Functions for Users
+	const fetchUsers = async (): Promise<void> => {
+		setIsLoading(true);
+		try {
+			const response = await axios.get(`${API_URL}/user`, {
+				headers: { Authorization: `Bearer ${token}` },
+			});
+			setUsers(response.data.data.data || []);
+		} catch (error) {
+			console.error('Error fetching users:', error);
+			showToast('Không thể tải danh sách người dùng');
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	const updateUser = async (): Promise<void> => {
+		try {
+			if (!currentUser?._id) return;
+
+			await axios.patch(`${API_URL}/user/${currentUser._id}`, userForm, {
+				headers: {
+					Authorization: `Bearer ${token}`,
+					'Content-Type': 'application/json',
+				},
+			});
+
+			showToast('Cập nhật người dùng thành công');
+			setUserModalVisible(false);
+			resetUserForm();
+			fetchUsers();
+		} catch (error) {
+			console.error('Error updating user:', error);
+			showToast('Không thể cập nhật người dùng');
+		}
+	};
+
+	const toggleUserStatus = async (userId: string, isActive: boolean): Promise<void> => {
+		try {
+			await axios.patch(
+				`${API_URL}/user/${userId}`,
+				{ isActive: !isActive },
+				{
+					headers: { Authorization: `Bearer ${token}` },
+				}
+			);
+			showToast(`${isActive ? 'Khóa' : 'Mở khóa'} tài khoản thành công`);
+			fetchUsers();
+		} catch (error) {
+			console.error('Error toggling user status:', error);
+			showToast('Không thể thay đổi trạng thái tài khoản');
+		}
+	};
+
 	// Form Helpers
 	const resetProductForm = (): void => {
 		setProductForm({
@@ -330,6 +429,18 @@ export default function AdminScreen() {
 			description: '',
 		});
 		setCurrentCategory(null);
+	};
+
+	const resetUserForm = (): void => {
+		setUserForm({
+			email: '',
+			fullName: '',
+			role: 'USER',
+			address: '',
+			city: '',
+			phone: '',
+		});
+		setCurrentUser(null);
 	};
 
 	const openProductModal = (product: Product | null = null): void => {
@@ -364,6 +475,23 @@ export default function AdminScreen() {
 			resetCategoryForm();
 		}
 		setCategoryModalVisible(true);
+	};
+
+	const openUserModal = (user: User | null = null): void => {
+		if (user) {
+			setCurrentUser(user);
+			setUserForm({
+				email: user.email || '',
+				fullName: user.fullName || '',
+				role: user.role || 'USER',
+				address: user.address || '',
+				city: user.city || '',
+				phone: user.phone || '',
+			});
+		} else {
+			resetUserForm();
+		}
+		setUserModalVisible(true);
 	};
 
 	// Render list items
@@ -433,6 +561,40 @@ export default function AdminScreen() {
 		</View>
 	);
 
+	const renderUserItem = ({ item }: ListRenderItemInfo<User>) => (
+		<View style={styles.listItem}>
+			<View style={styles.listItemContent}>
+				<Text style={styles.itemTitle}>{item.fullName}</Text>
+				<Text>{item.email}</Text>
+				<Text>Vai trò: {item.role}</Text>
+				<Text>SĐT: {item.phone || 'Chưa cập nhật'}</Text>
+			</View>
+			<View style={styles.buttonContainer}>
+				<TouchableOpacity
+					style={[styles.actionButton, styles.editButton]}
+					onPress={() => openUserModal(item)}
+				>
+					<Text style={styles.buttonText}>Sửa</Text>
+				</TouchableOpacity>
+				<TouchableOpacity
+					style={[styles.actionButton, item.isActive ? styles.deleteButton : styles.activateButton]}
+					onPress={() => 
+						Alert.alert(
+							'Xác nhận',
+							`Bạn có chắc muốn ${item.isActive ? 'khóa' : 'mở khóa'} tài khoản "${item.fullName}"?`,
+							[
+								{ text: 'Hủy', style: 'cancel' },
+								{ text: 'Đồng ý', onPress: () => toggleUserStatus(item._id, item.isActive) },
+							]
+						)
+					}
+				>
+					<Text style={styles.buttonText}>{item.isActive ? 'Khóa' : 'Mở khóa'}</Text>
+				</TouchableOpacity>
+			</View>
+		</View>
+	);
+
 	// Check if user is a MANAGER
 	if (user?.role !== 'MANAGER') {
 		return (
@@ -463,6 +625,12 @@ export default function AdminScreen() {
 				>
 					<Text style={activeTab === 'categories' ? styles.activeTabText : styles.tabText}>Danh mục</Text>
 				</TouchableOpacity>
+				<TouchableOpacity
+					style={[styles.tab, activeTab === 'users' && styles.activeTab]}
+					onPress={() => setActiveTab('users')}
+				>
+					<Text style={activeTab === 'users' ? styles.activeTabText : styles.tabText}>Người dùng</Text>
+				</TouchableOpacity>
 			</View>
 
 			{/* Content Area */}
@@ -487,6 +655,20 @@ export default function AdminScreen() {
 							style={styles.list}
 							contentContainerStyle={styles.listContent}
 							ListEmptyComponent={<Text style={styles.emptyText}>Không có sản phẩm nào</Text>}
+						/>
+					</>
+				) : activeTab === 'users' ? (
+					<>
+						<View style={styles.headerContainer}>
+							<Text style={styles.sectionTitle}>Quản lý người dùng</Text>
+						</View>
+						<FlatList
+							data={users}
+							renderItem={renderUserItem}
+							keyExtractor={(item) => item._id}
+							style={styles.list}
+							contentContainerStyle={styles.listContent}
+							ListEmptyComponent={<Text style={styles.emptyText}>Không có người dùng nào</Text>}
 						/>
 					</>
 				) : (
@@ -673,6 +855,71 @@ export default function AdminScreen() {
 								onPress={currentCategory ? updateCategory : createCategory}
 							>
 								<Text style={styles.buttonText}>{currentCategory ? 'Cập nhật' : 'Tạo mới'}</Text>
+							</TouchableOpacity>
+						</View>
+					</View>
+				</View>
+			</Modal>
+
+			{/* User Modal */}
+			<Modal
+				animationType="slide"
+				transparent={true}
+				visible={userModalVisible}
+				onRequestClose={() => setUserModalVisible(false)}
+			>
+				<View style={styles.modalOverlay}>
+					<View style={styles.modalContainer}>
+						<Text style={styles.modalTitle}>
+							{currentUser ? 'Sửa thông tin người dùng' : 'Thêm người dùng mới'}
+						</Text>
+
+						<Text style={styles.inputLabel}>Email</Text>
+						<TextInput
+							style={styles.input}
+							value={userForm.email}
+							onChangeText={(text) => setUserForm({ ...userForm, email: text })}
+							placeholder="Nhập email"
+							editable={!currentUser}
+						/>
+
+						<Text style={styles.inputLabel}>Họ tên</Text>
+						<TextInput
+							style={styles.input}
+							value={userForm.fullName}
+							onChangeText={(text) => setUserForm({ ...userForm, fullName: text })}
+							placeholder="Nhập họ tên"
+						/>
+
+						<Text style={styles.inputLabel}>Vai trò</Text>
+						<View style={styles.pickerContainer}>
+							<Picker
+								selectedValue={userForm.role}
+								onValueChange={(value: string) => setUserForm({ ...userForm, role: value })}
+								style={styles.picker}
+							>
+								<Picker.Item label="Người dùng" value="USER" />
+								<Picker.Item label="Quản lý" value="MANAGER" />
+							</Picker>
+						</View>
+
+						<View style={styles.modalButtonContainer}>
+							<TouchableOpacity
+								style={[styles.modalButton, styles.cancelButton]}
+								onPress={() => {
+									setUserModalVisible(false);
+									resetUserForm();
+								}}
+							>
+								<Text style={styles.buttonText}>Hủy</Text>
+							</TouchableOpacity>
+							<TouchableOpacity
+								style={[styles.modalButton, styles.saveButton]}
+								onPress={updateUser}
+							>
+								<Text style={styles.buttonText}>
+									{currentUser ? 'Cập nhật' : 'Tạo mới'}
+								</Text>
 							</TouchableOpacity>
 						</View>
 					</View>
@@ -881,5 +1128,18 @@ const styles = StyleSheet.create({
 		height: 50,
 		borderRadius: 4,
 		marginRight: 12,
+	},
+	activateButton: {
+		backgroundColor: '#28a745',
+	},
+	pickerContainer: {
+		borderWidth: 1,
+		borderColor: '#ddd',
+		borderRadius: 6,
+		marginBottom: 16,
+		backgroundColor: '#f9f9f9',
+	},
+	picker: {
+		height: 50,
 	},
 });
