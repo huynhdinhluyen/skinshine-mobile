@@ -31,9 +31,9 @@ export default function OrderSuccessScreen() {
         </Text>
         <TouchableOpacity
           style={styles.button}
-          onPress={() => router.push("/home")}
+          onPress={() => router.push("/profile?tab=orders")}
         >
-          <Text style={styles.buttonText}>Quay lại trang chủ</Text>
+          <Text style={styles.buttonText}>Xem đơn hàng của bạn</Text>
         </TouchableOpacity>
       </SafeAreaView>
     </>
