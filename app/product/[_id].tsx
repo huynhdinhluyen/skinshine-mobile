@@ -45,8 +45,16 @@ export default function ProductDetailScreen() {
   const API_URL = process.env.EXPO_PUBLIC_API_URL;
   const { _id } = useLocalSearchParams<{ _id: string }>();
   const router = useRouter();
+
+  // State cho sản phẩm
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // State cho feedback
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(true);
+
+  // Các state khác
   const [currentImage, setCurrentImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -54,9 +62,9 @@ export default function ProductDetailScreen() {
   const [comparisonProduct, setComparisonProduct] = useState<Product | null>(
     null
   );
-  const [editingSlot, setEditingSlot] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
+
   const { user } = useAuth();
   const { getCartCount, fetchCartFromServer } = useCart();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -65,6 +73,14 @@ export default function ProductDetailScreen() {
   useEffect(() => {
     loadProductDetails();
     animateContent();
+  }, [_id]);
+
+  // Gọi hàm load feedbacks khi _id (productId) thay đổi
+  useEffect(() => {
+    if (_id) {
+      console.log(_id);
+      loadFeedbacks(_id);
+    }
   }, [_id]);
 
   const animateContent = () => {
@@ -85,6 +101,7 @@ export default function ProductDetailScreen() {
     ]).start();
   };
 
+  // Hàm lấy chi tiết product
   const loadProductDetails = async () => {
     try {
       setLoading(true);
@@ -97,10 +114,33 @@ export default function ProductDetailScreen() {
     }
   };
 
+  // Hàm gọi API lấy feedback của product
+  const loadFeedbacks = async (productId: string | number) => {
+    try {
+      setFeedbackLoading(true);
+      // Ví dụ gọi API với page=1, limit=5
+      const response = await fetch(
+        `${API_URL}/feedbacks/product/${productId}?page=1&limit=10`
+      );
+      if (!response.ok) {
+        console.log("Failed to fetch feedbacks");
+      }
+      const data = await response.json();
+
+      // Tuỳ cấu trúc response mà bạn parse dữ liệu khác nhau.
+      // Ví dụ giả định data.feedbacks là mảng feedback:
+      console.log(data.data.data)
+      setFeedbacks(data.data.data || []);
+    } catch (error) {
+      console.error("Error fetching feedbacks:", error);
+    } finally {
+      setFeedbackLoading(false);
+    }
+  };
+
   const handleAddToCart = async () => {
     try {
       if (!product) return;
-
       const token = user?.token;
 
       const response = await fetch(`${API_URL}/carts`, {
@@ -165,20 +205,12 @@ export default function ProductDetailScreen() {
 
   const handleOpenCompareModal = () => {
     setIsCompareModalVisible(true);
-    setEditingSlot(null);
     setSearchQuery("");
     setSearchResults([]);
   };
 
   const handleCloseCompareModal = () => {
     setIsCompareModalVisible(false);
-    setEditingSlot(null);
-    setSearchQuery("");
-    setSearchResults([]);
-  };
-
-  const handleEditSlot = (slotIndex: number) => {
-    setEditingSlot(slotIndex);
     setSearchQuery("");
     setSearchResults([]);
   };
@@ -527,6 +559,53 @@ export default function ProductDetailScreen() {
               trên. Để thẩm thấu hoàn toàn trước khi sử dụng các sản phẩm khác.
             </Text>
           </View>
+
+          {/* FEEDBACK SECTION */}
+          <View style={styles.feedbackContainer}>
+            <Text style={styles.sectionTitle}>Đánh giá từ người dùng</Text>
+            {feedbackLoading ? (
+              <ActivityIndicator size="small" color="#2f95dc" />
+            ) : feedbacks.length === 0 ? (
+              <Text style={styles.noFeedbackText}>
+                Hiện chưa có đánh giá cho sản phẩm này.
+              </Text>
+            ) : (
+              <View style={styles.feedbackList}>
+                {feedbacks?.map((fb, index) => (
+                  <View key={index} style={styles.feedbackItem}>
+                    {/* Tuỳ theo cấu trúc feedback, bạn hiển thị thông tin tương ứng */}
+                    <View style={styles.feedbackHeader}>
+                      <FontAwesome
+                        name="user-circle"
+                        size={24}
+                        color="#2f95dc"
+                        style={{ marginRight: 8 }}
+                      />
+                      <View>
+                        <Text style={styles.feedbackAuthor}>
+                          {fb.author.fullName || "Người dùng ẩn danh"}
+                        </Text>
+                        <View style={styles.feedbackRatingContainer}>
+                          {Array(fb.rating)
+                            .fill(0)
+                            .map((_, i) => (
+                              <FontAwesome
+                                key={i}
+                                name="star"
+                                size={16}
+                                color="#FFB800"
+                              />
+                            ))}
+                        </View>
+                      </View>
+                    </View>
+                    <Text style={styles.feedbackComment}>{fb.comment}</Text>
+                    <View style={styles.feedbackSeparator} />
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
         </Animated.View>
       </ScrollView>
 
@@ -570,11 +649,11 @@ export default function ProductDetailScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Modal So sánh sản phẩm */}
       <Modal transparent animationType="slide" visible={isCompareModalVisible}>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>So sánh sản phẩm</Text>
-
             <View style={styles.compareProductsContainer}>
               {/* Current product */}
               <View style={styles.compareProductCard}>
@@ -610,9 +689,7 @@ export default function ProductDetailScreen() {
                     Sản phẩm so sánh
                   </Text>
                 </View>
-
                 {!comparisonProduct ? (
-                  // Empty slot
                   <View style={styles.emptyCompareSlot}>
                     <TextInput
                       style={styles.searchInput}
@@ -628,7 +705,6 @@ export default function ProductDetailScreen() {
                       }}
                       onSubmitEditing={handleSearch}
                     />
-
                     {searchResults.length > 0 && (
                       <FlatList
                         data={searchResults}
@@ -662,13 +738,11 @@ export default function ProductDetailScreen() {
                         style={styles.searchResultsList}
                       />
                     )}
-
                     {searchResults.length === 0 && searchQuery.length > 0 && (
                       <Text style={styles.noResultsText}>
                         Không tìm thấy sản phẩm phù hợp
                       </Text>
                     )}
-
                     {searchQuery.length === 0 && (
                       <View style={styles.emptySlotContent}>
                         <FontAwesome name="plus" size={24} color="#aaa" />
@@ -679,7 +753,6 @@ export default function ProductDetailScreen() {
                     )}
                   </View>
                 ) : (
-                  // Selected product
                   <>
                     <Image
                       source={{
@@ -749,6 +822,7 @@ export default function ProductDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  // ... Toàn bộ style cũ của bạn
   backButtonHeader: {
     padding: 8,
     marginLeft: 4,
@@ -1020,6 +1094,47 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: "#555",
   },
+  // FEEDBACK
+  feedbackContainer: {
+    marginBottom: 30,
+    backgroundColor: "transparent",
+  },
+  feedbackList: {
+    marginTop: 10,
+  },
+  feedbackItem: {
+    marginBottom: 20,
+  },
+  feedbackHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  feedbackAuthor: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+  },
+  feedbackRatingContainer: {
+    flexDirection: "row",
+    marginTop: 2,
+  },
+  feedbackComment: {
+    fontSize: 14,
+    color: "#555",
+    lineHeight: 20,
+  },
+  feedbackSeparator: {
+    height: 1,
+    backgroundColor: "#eee",
+    marginTop: 10,
+  },
+  noFeedbackText: {
+    fontSize: 14,
+    color: "#888",
+    fontStyle: "italic",
+  },
+  // FOOTER
   footer: {
     position: "absolute",
     bottom: 0,
@@ -1094,7 +1209,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  // Styles cho modal so sánh
+  // MODAL COMPARE
   modalContainer: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
