@@ -56,7 +56,7 @@ const CategoryFilter = ({ selectedCategory, onSelectCategory }: CategoryFilterPr
                             selectedCategory === null && styles.selectedCategoryText
                         ]}
                     >
-                        All
+                        Tất cả
                     </Text>
                 </TouchableOpacity>
 

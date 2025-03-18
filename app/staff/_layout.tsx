@@ -41,7 +41,7 @@ export default function StaffLayout() {
                 }}
             />
             <Tabs.Screen
-                name="orders/index"
+                name="orders"
                 options={{
                     title: 'Đơn hàng',
                     tabBarLabel: 'Đơn hàng',

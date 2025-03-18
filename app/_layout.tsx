@@ -44,6 +44,7 @@ function RootLayoutNav() {
           <Stack.Screen name="signup" options={{ headerShown: false }} />
           <Stack.Screen name="login" options={{ headerShown: false }} />
           <Stack.Screen name="compare" options={{ headerShown: false }} />
+          <Stack.Screen name="staff" options={{ headerShown: false }} />
         </Stack>
       </CartProvider>
     </AuthProvider>
