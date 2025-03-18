@@ -12,6 +12,7 @@ import {
   Modal,
   TextInput,
   FlatList,
+  ToastAndroid,
 } from "react-native";
 import { Text, View } from "@/components/Themed";
 import { FontAwesome } from "@expo/vector-icons";
@@ -27,10 +28,21 @@ import {
   ProductQueryParams,
 } from "@/services/product.service";
 import { Product } from "@/types/product/product";
+import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
+import { CartIconWithBadge } from "@/components/CartIconWithBadge";
 
 const { width } = Dimensions.get("window");
 
+const skinTypeMapping: Record<string, string> = {
+  COMBINATION: "Da hỗn hợp",
+  OILY: "Da dầu",
+  DRY: "Da khô",
+  NORMAL: "Da thường",
+};
+
 export default function ProductDetailScreen() {
+  const API_URL = process.env.EXPO_PUBLIC_API_URL;
   const { _id } = useLocalSearchParams<{ _id: string }>();
   const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
@@ -38,13 +50,15 @@ export default function ProductDetailScreen() {
   const [currentImage, setCurrentImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [isFavorite, setIsFavorite] = useState(false);
-
   const [isCompareModalVisible, setIsCompareModalVisible] = useState(false);
-  const [comparisonProduct, setComparisonProduct] = useState<Product | null>(null);
+  const [comparisonProduct, setComparisonProduct] = useState<Product | null>(
+    null
+  );
   const [editingSlot, setEditingSlot] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
-
+  const { user } = useAuth();
+  const { getCartCount, fetchCartFromServer } = useCart();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
@@ -83,8 +97,46 @@ export default function ProductDetailScreen() {
     }
   };
 
-  const handleAddToCart = () => {
-    alert(`${quantity} ${quantity > 1 ? "items" : "item"} added to cart!`);
+  const handleAddToCart = async () => {
+    try {
+      if (!product) return;
+
+      const token = user?.token;
+
+      const response = await fetch(`${API_URL}/carts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: user?.id,
+          productId: product._id,
+          quantity: quantity,
+        }),
+      });
+
+      if (response.status === 401) {
+        ToastAndroid.show(
+          "Vui lòng đăng nhập trước khi thêm vào giỏ hàng!",
+          ToastAndroid.SHORT
+        );
+        return;
+      }
+
+      if (response.ok) {
+        ToastAndroid.show("Đã thêm vào giỏ hàng!", ToastAndroid.SHORT);
+        if (user?.id && user.token) {
+          fetchCartFromServer(user?.id, user?.token);
+        }
+      } else {
+        console.log(response);
+        ToastAndroid.show("Lỗi khi thêm vào giỏ hàng!", ToastAndroid.SHORT);
+      }
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+      ToastAndroid.show("Đã xảy ra lỗi!", ToastAndroid.SHORT);
+    }
   };
 
   const handleQuantityChange = (amount: number) => {
@@ -144,8 +196,9 @@ export default function ProductDetailScreen() {
       };
 
       const results = await getProducts(params);
-      const filteredResults = results
-          .filter(item => item && item._id !== product?._id);
+      const filteredResults = results.filter(
+        (item) => item && item._id !== product?._id
+      );
 
       setSearchResults(filteredResults);
     } catch (error) {
@@ -168,479 +221,530 @@ export default function ProductDetailScreen() {
       }
       router.push({
         pathname: "/compare",
-        params: { product1: product._id, product2: comparisonProduct._id }
+        params: { product1: product._id, product2: comparisonProduct._id },
       });
     }
   };
 
   useFocusEffect(
-      React.useCallback(() => {
-        setIsCompareModalVisible(false);
-        setComparisonProduct(null);
-        setSearchQuery("");
-        setSearchResults([]);
+    React.useCallback(() => {
+      setIsCompareModalVisible(false);
+      setComparisonProduct(null);
+      setSearchQuery("");
+      setSearchResults([]);
 
-        return () => {};
-      }, [])
+      return () => {};
+    }, [])
   );
 
   if (loading) {
     return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2f95dc" />
-        </View>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2f95dc" />
+      </View>
     );
   }
 
   if (!product) {
     return (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Product not found</Text>
-          <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => router.back()}
-          >
-            <Text style={styles.backButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Product not found</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
     );
   }
 
   return (
-      <>
-        <Stack.Screen
-            options={{
-              title: "",
-              headerTransparent: true,
-              headerBackTitle: "",
-              headerTintColor: "#fff",
-              headerLeft: () => (
-                  <TouchableOpacity
-                      style={styles.backButtonHeader}
-                      onPress={() => router.back()}
-                  >
-                    <FontAwesome name="arrow-left" size={22} color="#fff" />
-                  </TouchableOpacity>
-              ),
-              headerRight: () => (
-                  <View style={styles.headerButtons}>
-                    <TouchableOpacity
-                        style={styles.headerButton}
-                        onPress={toggleFavorite}
-                    >
-                      <FontAwesome
-                          name={isFavorite ? "heart" : "heart-o"}
-                          size={22}
-                          color={isFavorite ? "#ff4757" : "#fff"}
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.headerButton}
-                        onPress={handleShare}
-                    >
-                      <FontAwesome name="share" size={22} color="#fff" />
-                    </TouchableOpacity>
-                  </View>
-              ),
-            }}
-        />
-        <ScrollView
-            style={styles.container}
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-        >
-          {/* Product Images */}
-          <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onScroll={(event) => {
-                const x = event.nativeEvent.contentOffset.x;
-                setCurrentImage(Math.round(x / width));
-              }}
-              scrollEventThrottle={16}
-          >
-            {product.images.map((image, index) => (
-                <Image
-                    key={index}
-                    source={{ uri: image || "https://via.placeholder.com/400" }}
-                    style={styles.productImage}
-                    resizeMode="cover"
+    <>
+      <Stack.Screen
+        options={{
+          title: "",
+          headerTransparent: true,
+          headerBackTitle: "",
+          headerTintColor: "#fff",
+          headerLeft: () => (
+            <TouchableOpacity
+              style={styles.backButtonHeader}
+              onPress={() => router.back()}
+            >
+              <FontAwesome name="arrow-left" size={22} color="#fff" />
+            </TouchableOpacity>
+          ),
+          headerRight: () => (
+            <View style={styles.headerButtons}>
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={toggleFavorite}
+              >
+                <FontAwesome
+                  name={isFavorite ? "heart" : "heart-o"}
+                  size={22}
+                  color={isFavorite ? "#ff4757" : "#fff"}
                 />
-            ))}
-          </ScrollView>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={() => router.push("/(tabs)/cart")}
+              >
+                <CartIconWithBadge
+                  iconName="shopping-cart"
+                  iconSize={22}
+                  iconColor="#fff"
+                  badgeCount={getCartCount()}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={handleShare}
+              >
+                <FontAwesome name="share" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          ),
+        }}
+      />
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {/* Product Images */}
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={(event) => {
+            const x = event.nativeEvent.contentOffset.x;
+            setCurrentImage(Math.round(x / width));
+          }}
+          scrollEventThrottle={16}
+        >
+          {product.images.map((image, index) => (
+            <Image
+              key={index}
+              source={{ uri: image || "https://via.placeholder.com/400" }}
+              style={styles.productImage}
+              resizeMode="cover"
+            />
+          ))}
+        </ScrollView>
 
-          {/* Image Pagination Dots */}
-          {product.images.length > 1 && (
-              <View style={styles.pagination}>
-                {product.images.map((_, index) => (
-                    <View
-                        key={index}
-                        style={[
-                          styles.paginationDot,
-                          index === currentImage && styles.activeDot,
-                        ]}
+        {/* Image Pagination Dots */}
+        {product.images.length > 1 && (
+          <View style={styles.pagination}>
+            {product.images.map((_, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.paginationDot,
+                  index === currentImage && styles.activeDot,
+                ]}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* Product Info */}
+        <Animated.View
+          style={[
+            styles.infoContainer,
+            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+          ]}
+        >
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.brand}>{product.brand}</Text>
+              <Text style={styles.name}>{product.name}</Text>
+              <View style={styles.ratingContainer}>
+                {Array(5)
+                  .fill(0)
+                  .map((_, i) => (
+                    <FontAwesome
+                      key={i}
+                      name={
+                        i < Math.round(product.averageRating)
+                          ? "star"
+                          : "star-o"
+                      }
+                      size={16}
+                      color={
+                        i < Math.round(product.averageRating)
+                          ? "#FFB800"
+                          : "#e0e0e0"
+                      }
+                      style={styles.starIcon}
                     />
+                  ))}
+                <Text style={styles.reviewCount}>
+                  ({product.reviewCount} reviews)
+                </Text>
+                <TouchableOpacity onPress={handleOpenCompareModal}>
+                  <Text style={styles.compareText}>So sánh sản phẩm</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={styles.headerRight}>
+              {product.discountedPrice < product.originalPrice ? (
+                <>
+                  <Text style={styles.originalPrice}>
+                    {product.originalPrice.toLocaleString()}đ
+                  </Text>
+                  <Text style={styles.price}>
+                    {product.discountedPrice.toLocaleString()}đ
+                  </Text>
+                  <View style={styles.discountBadge}>
+                    <Text style={styles.discountText}>
+                      {Math.round(
+                        (1 - product.discountedPrice / product.originalPrice) *
+                          100
+                      )}
+                      % OFF
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.price}>
+                  {product.price.toLocaleString()}đ
+                </Text>
+              )}
+            </View>
+          </View>
+
+          {/* Details Section */}
+          <View style={styles.detailsContainer}>
+            <View style={styles.detailRow}>
+              <View style={styles.detailItem}>
+                <FontAwesome
+                  name="flask"
+                  size={18}
+                  color="#666"
+                  style={styles.detailIcon}
+                />
+                <Text style={styles.detailText}>{product.capacity}ml</Text>
+              </View>
+              <View style={styles.detailItem}>
+                <FontAwesome
+                  name="map-marker"
+                  size={18}
+                  color="#666"
+                  style={styles.detailIcon}
+                />
+                <Text style={styles.detailText}>{product.origin}</Text>
+              </View>
+            </View>
+            <View style={styles.detailRow}>
+              <View style={styles.detailItem}>
+                <FontAwesome
+                  name="tag"
+                  size={18}
+                  color="#666"
+                  style={styles.detailIcon}
+                />
+                <Text style={styles.detailText}>{product.category.name}</Text>
+              </View>
+              <View style={styles.detailItem}>
+                <FontAwesome
+                  name="shopping-basket"
+                  size={18}
+                  color="#666"
+                  style={styles.detailIcon}
+                />
+                <Text style={styles.detailText}>
+                  {product.stockQuantity > 0
+                    ? `Còn ${product.stockQuantity} hàng tồn kho`
+                    : "Hết hàng"}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Skin Types Section */}
+          {product.skinTypes && product.skinTypes.length > 0 && (
+            <View style={styles.skinTypesContainer}>
+              <Text style={styles.sectionTitle}>Suitable Skin Types</Text>
+              <View style={styles.skinTypesList}>
+                {product.skinTypes.map((skinType, index) => (
+                  <View key={index} style={styles.skinTypeBadge}>
+                    <Text style={styles.skinTypeText}>
+                      {skinTypeMapping[skinType] || skinType}
+                    </Text>
+                  </View>
                 ))}
               </View>
+            </View>
           )}
 
-          {/* Product Info */}
-          <Animated.View
-              style={[
-                styles.infoContainer,
-                { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-              ]}
-          >
-            <View style={styles.header}>
-              <View style={styles.headerLeft}>
-                <Text style={styles.brand}>{product.brand}</Text>
-                <Text style={styles.name}>{product.name}</Text>
-                <View style={styles.ratingContainer}>
-                  {Array(5).fill(0).map((_, i) => (
-                      <FontAwesome
-                          key={i}
-                          name={i < Math.round(product.averageRating) ? "star" : "star-o"}
-                          size={16}
-                          color={i < Math.round(product.averageRating) ? "#FFB800" : "#e0e0e0"}
-                          style={styles.starIcon}
-                      />
-                  ))}
-                  <Text style={styles.reviewCount}>({product.reviewCount} reviews)</Text>
-                  <TouchableOpacity onPress={handleOpenCompareModal}>
-                    <Text style={styles.compareText}>So sánh sản phẩm</Text>
-                  </TouchableOpacity>
+          {/* Description Section */}
+          <View style={styles.descriptionContainer}>
+            <Text style={styles.sectionTitle}>Mô tả</Text>
+            <Text style={styles.description}>{product.description}</Text>
+          </View>
+
+          {/* Ingredients Section */}
+          {product.ingredients && (
+            <View style={styles.ingredientsContainer}>
+              <Text style={styles.sectionTitle}>Thành phần</Text>
+              <Text style={styles.ingredientsText}>{product.ingredients}</Text>
+            </View>
+          )}
+
+          {/* Key Benefits Section */}
+          <View style={styles.keyFeaturesContainer}>
+            <Text style={styles.sectionTitle}>Ưu điểm</Text>
+            <View style={styles.benefitsList}>
+              <View style={styles.benefitItem}>
+                <View style={styles.benefitIconContainer}>
+                  <FontAwesome name="check-circle" size={20} color="#2f95dc" />
                 </View>
+                <Text style={styles.benefitText}>Cải thiện sức khỏe da</Text>
               </View>
-              <View style={styles.headerRight}>
-                {product.discountedPrice < product.originalPrice ? (
-                    <>
-                      <Text style={styles.originalPrice}>
-                        {product.originalPrice.toLocaleString()}đ
+              <View style={styles.benefitItem}>
+                <View style={styles.benefitIconContainer}>
+                  <FontAwesome name="check-circle" size={20} color="#2f95dc" />
+                </View>
+                <Text style={styles.benefitText}>Bảo vệ da</Text>
+              </View>
+              <View style={styles.benefitItem}>
+                <View style={styles.benefitIconContainer}>
+                  <FontAwesome name="check-circle" size={20} color="#2f95dc" />
+                </View>
+                <Text style={styles.benefitText}>Chống lão hóa</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* How to Use Section */}
+          <View style={styles.howToUseContainer}>
+            <Text style={styles.sectionTitle}>Cách sử dụng</Text>
+            <Text style={styles.howToUseText}>
+              Thoa lên da sạch vào buổi sáng và buổi tối. Sử dụng một lượng bằng
+              hạt đậu và nhẹ nhàng massage vào da theo chuyển động hướng lên
+              trên. Để thẩm thấu hoàn toàn trước khi sử dụng các sản phẩm khác.
+            </Text>
+          </View>
+        </Animated.View>
+      </ScrollView>
+
+      {/* Add to Cart Button */}
+      <View style={styles.footer}>
+        <View style={styles.quantitySelector}>
+          <TouchableOpacity
+            style={[
+              styles.quantityButton,
+              quantity <= 1 && styles.disabledButton,
+            ]}
+            onPress={() => handleQuantityChange(-1)}
+            disabled={quantity <= 1}
+          >
+            <Text style={styles.quantityButtonText}>-</Text>
+          </TouchableOpacity>
+          <Text style={styles.quantityText}>{quantity}</Text>
+          <TouchableOpacity
+            style={[
+              styles.quantityButton,
+              quantity >= (product?.stockQuantity || 10) &&
+                styles.disabledButton,
+            ]}
+            onPress={() => handleQuantityChange(1)}
+            disabled={quantity >= (product?.stockQuantity || 10)}
+          >
+            <Text style={styles.quantityButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity
+          style={styles.addToCartButton}
+          onPress={handleAddToCart}
+        >
+          <FontAwesome
+            name="shopping-cart"
+            size={18}
+            color="#fff"
+            style={styles.cartIcon}
+          />
+          <Text style={styles.addToCartText}>Thêm vào giỏ hàng</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Modal transparent animationType="slide" visible={isCompareModalVisible}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>So sánh sản phẩm</Text>
+
+            <View style={styles.compareProductsContainer}>
+              {/* Current product */}
+              <View style={styles.compareProductCard}>
+                <View style={styles.compareProductHeader}>
+                  <Text style={styles.compareProductHeaderText}>
+                    Sản phẩm hiện tại
+                  </Text>
+                </View>
+                <Image
+                  source={{
+                    uri: product.images[0] || "https://via.placeholder.com/120",
+                  }}
+                  style={styles.compareImage}
+                  resizeMode="cover"
+                />
+                <Text
+                  style={styles.compareProductName}
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                >
+                  {product.name}
+                </Text>
+                <Text style={styles.compareProductBrand}>{product.brand}</Text>
+                <Text style={styles.compareProductPrice}>
+                  {product.discountedPrice.toLocaleString()}đ
+                </Text>
+              </View>
+
+              {/* Comparison product */}
+              <View style={styles.compareProductCard}>
+                <View style={styles.compareProductHeader}>
+                  <Text style={styles.compareProductHeaderText}>
+                    Sản phẩm so sánh
+                  </Text>
+                </View>
+
+                {!comparisonProduct ? (
+                  // Empty slot
+                  <View style={styles.emptyCompareSlot}>
+                    <TextInput
+                      style={styles.searchInput}
+                      placeholder="Tìm sản phẩm..."
+                      value={searchQuery}
+                      onChangeText={(text) => {
+                        setSearchQuery(text);
+                        if (text.length >= 2) {
+                          handleSearch();
+                        } else if (text.length === 0) {
+                          setSearchResults([]);
+                        }
+                      }}
+                      onSubmitEditing={handleSearch}
+                    />
+
+                    {searchResults.length > 0 && (
+                      <FlatList
+                        data={searchResults}
+                        keyExtractor={(item) => item._id}
+                        renderItem={({ item }) => (
+                          <TouchableOpacity
+                            style={styles.searchResultItem}
+                            onPress={() => handleChooseComparisonProduct(item)}
+                          >
+                            <Image
+                              source={{
+                                uri:
+                                  item.images[0] ||
+                                  "https://via.placeholder.com/40",
+                              }}
+                              style={styles.searchResultImage}
+                            />
+                            <View style={styles.searchResultTextContainer}>
+                              <Text
+                                style={styles.searchResultName}
+                                numberOfLines={2}
+                              >
+                                {item.name}
+                              </Text>
+                              <Text style={styles.searchResultBrand}>
+                                {item.brand}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        )}
+                        style={styles.searchResultsList}
+                      />
+                    )}
+
+                    {searchResults.length === 0 && searchQuery.length > 0 && (
+                      <Text style={styles.noResultsText}>
+                        Không tìm thấy sản phẩm phù hợp
                       </Text>
-                      <Text style={styles.price}>
-                        {product.discountedPrice.toLocaleString()}đ
-                      </Text>
-                      <View style={styles.discountBadge}>
-                        <Text style={styles.discountText}>
-                          {Math.round(
-                              (1 - product.discountedPrice / product.originalPrice) *
-                              100
-                          )}
-                          % OFF
+                    )}
+
+                    {searchQuery.length === 0 && (
+                      <View style={styles.emptySlotContent}>
+                        <FontAwesome name="plus" size={24} color="#aaa" />
+                        <Text style={styles.emptySlotText}>
+                          Chọn sản phẩm để so sánh
                         </Text>
                       </View>
-                    </>
+                    )}
+                  </View>
                 ) : (
-                    <Text style={styles.price}>
-                      {product.price.toLocaleString()}đ
+                  // Selected product
+                  <>
+                    <Image
+                      source={{
+                        uri:
+                          comparisonProduct.images[0] ||
+                          "https://via.placeholder.com/120",
+                      }}
+                      style={styles.compareImage}
+                      resizeMode="cover"
+                    />
+                    <Text
+                      style={styles.compareProductName}
+                      numberOfLines={2}
+                      ellipsizeMode="tail"
+                    >
+                      {comparisonProduct.name}
                     </Text>
+                    <Text style={styles.compareProductBrand}>
+                      {comparisonProduct.brand}
+                    </Text>
+                    <Text style={styles.compareProductPrice}>
+                      {comparisonProduct.discountedPrice.toLocaleString()}đ
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.changeProductButton}
+                      onPress={() => setComparisonProduct(null)}
+                    >
+                      <Text style={styles.changeProductButtonText}>
+                        Thay đổi
+                      </Text>
+                    </TouchableOpacity>
+                  </>
                 )}
               </View>
             </View>
 
-            {/* Details Section */}
-            <View style={styles.detailsContainer}>
-              <View style={styles.detailRow}>
-                <View style={styles.detailItem}>
-                  <FontAwesome
-                      name="flask"
-                      size={18}
-                      color="#666"
-                      style={styles.detailIcon}
-                  />
-                  <Text style={styles.detailText}>{product.capacity}ml</Text>
-                </View>
-                <View style={styles.detailItem}>
-                  <FontAwesome
-                      name="map-marker"
-                      size={18}
-                      color="#666"
-                      style={styles.detailIcon}
-                  />
-                  <Text style={styles.detailText}>{product.origin}</Text>
-                </View>
-              </View>
-              <View style={styles.detailRow}>
-                <View style={styles.detailItem}>
-                  <FontAwesome
-                      name="tag"
-                      size={18}
-                      color="#666"
-                      style={styles.detailIcon}
-                  />
-                  <Text style={styles.detailText}>{product.category.name}</Text>
-                </View>
-                <View style={styles.detailItem}>
-                  <FontAwesome
-                      name="shopping-basket"
-                      size={18}
-                      color="#666"
-                      style={styles.detailIcon}
-                  />
-                  <Text style={styles.detailText}>
-                    {product.stockQuantity > 0
-                        ? `${product.stockQuantity} in stock`
-                        : "Out of stock"}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Skin Types Section */}
-            {product.skinTypes && product.skinTypes.length > 0 && (
-                <View style={styles.skinTypesContainer}>
-                  <Text style={styles.sectionTitle}>Suitable Skin Types</Text>
-                  <View style={styles.skinTypesList}>
-                    {product.skinTypes.map((skinType, index) => (
-                        <View key={index} style={styles.skinTypeBadge}>
-                          <Text style={styles.skinTypeText}>{skinType}</Text>
-                        </View>
-                    ))}
-                  </View>
-                </View>
-            )}
-
-            {/* Description Section */}
-            <View style={styles.descriptionContainer}>
-              <Text style={styles.sectionTitle}>Description</Text>
-              <Text style={styles.description}>{product.description}</Text>
-            </View>
-
-            {/* Ingredients Section */}
-            {product.ingredients && (
-                <View style={styles.ingredientsContainer}>
-                  <Text style={styles.sectionTitle}>Ingredients</Text>
-                  <Text style={styles.ingredientsText}>{product.ingredients}</Text>
-                </View>
-            )}
-
-            {/* Key Benefits Section */}
-            <View style={styles.keyFeaturesContainer}>
-              <Text style={styles.sectionTitle}>Key Benefits</Text>
-              <View style={styles.benefitsList}>
-                <View style={styles.benefitItem}>
-                  <View style={styles.benefitIconContainer}>
-                    <FontAwesome name="check-circle" size={20} color="#2f95dc" />
-                  </View>
-                  <Text style={styles.benefitText}>
-                    Hydrates skin for up to 48 hours
-                  </Text>
-                </View>
-                <View style={styles.benefitItem}>
-                  <View style={styles.benefitIconContainer}>
-                    <FontAwesome name="check-circle" size={20} color="#2f95dc" />
-                  </View>
-                  <Text style={styles.benefitText}>
-                    Reduces appearance of fine lines
-                  </Text>
-                </View>
-                <View style={styles.benefitItem}>
-                  <View style={styles.benefitIconContainer}>
-                    <FontAwesome name="check-circle" size={20} color="#2f95dc" />
-                  </View>
-                  <Text style={styles.benefitText}>
-                    Suitable for sensitive skin
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* How to Use Section */}
-            <View style={styles.howToUseContainer}>
-              <Text style={styles.sectionTitle}>How to Use</Text>
-              <Text style={styles.howToUseText}>
-                Apply to clean skin morning and evening. Use a pea-sized amount
-                and gently massage into the skin using upward motions. Allow to
-                absorb completely before applying other products.
-              </Text>
-            </View>
-          </Animated.View>
-        </ScrollView>
-
-        {/* Add to Cart Button */}
-        <View style={styles.footer}>
-          <View style={styles.quantitySelector}>
-            <TouchableOpacity
+            <View style={styles.compareModalFooter}>
+              <TouchableOpacity
                 style={[
-                  styles.quantityButton,
-                  quantity <= 1 && styles.disabledButton,
+                  styles.compareButton,
+                  !comparisonProduct && styles.disabledButton,
                 ]}
-                onPress={() => handleQuantityChange(-1)}
-                disabled={quantity <= 1}
-            >
-              <Text style={styles.quantityButtonText}>-</Text>
-            </TouchableOpacity>
-            <Text style={styles.quantityText}>{quantity}</Text>
-            <TouchableOpacity
-                style={[
-                  styles.quantityButton,
-                  quantity >= (product?.stockQuantity || 10) &&
-                  styles.disabledButton,
-                ]}
-                onPress={() => handleQuantityChange(1)}
-                disabled={quantity >= (product?.stockQuantity || 10)}
-            >
-              <Text style={styles.quantityButtonText}>+</Text>
-            </TouchableOpacity>
+                onPress={handleCompare}
+                disabled={!comparisonProduct}
+              >
+                <FontAwesome
+                  name="exchange"
+                  size={18}
+                  color="#fff"
+                  style={styles.compareButtonIcon}
+                />
+                <Text style={styles.compareButtonText}>So sánh</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setIsCompareModalVisible(false)}
+              >
+                <Text style={styles.closeButtonText}>Đóng</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <TouchableOpacity
-              style={styles.addToCartButton}
-              onPress={handleAddToCart}
-          >
-            <FontAwesome
-                name="shopping-cart"
-                size={18}
-                color="#fff"
-                style={styles.cartIcon}
-            />
-            <Text style={styles.addToCartText}>Add to Cart</Text>
-          </TouchableOpacity>
         </View>
-
-        <Modal transparent animationType="slide" visible={isCompareModalVisible}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>So sánh sản phẩm</Text>
-
-              <View style={styles.compareProductsContainer}>
-                {/* Current product */}
-                <View style={styles.compareProductCard}>
-                  <View style={styles.compareProductHeader}>
-                    <Text style={styles.compareProductHeaderText}>Sản phẩm hiện tại</Text>
-                  </View>
-                  <Image
-                      source={{
-                        uri: product.images[0] || "https://via.placeholder.com/120",
-                      }}
-                      style={styles.compareImage}
-                      resizeMode="cover"
-                  />
-                  <Text style={styles.compareProductName} numberOfLines={2} ellipsizeMode="tail">
-                    {product.name}
-                  </Text>
-                  <Text style={styles.compareProductBrand}>{product.brand}</Text>
-                  <Text style={styles.compareProductPrice}>
-                    {product.discountedPrice.toLocaleString()}đ
-                  </Text>
-                </View>
-
-                {/* Comparison product */}
-                <View style={styles.compareProductCard}>
-                  <View style={styles.compareProductHeader}>
-                    <Text style={styles.compareProductHeaderText}>Sản phẩm so sánh</Text>
-                  </View>
-
-                  {!comparisonProduct ? (
-                      // Empty slot
-                      <View style={styles.emptyCompareSlot}>
-                        <TextInput
-                            style={styles.searchInput}
-                            placeholder="Tìm sản phẩm..."
-                            value={searchQuery}
-                            onChangeText={(text) => {
-                              setSearchQuery(text);
-                              if (text.length >= 2) {
-                                handleSearch();
-                              } else if (text.length === 0) {
-                                setSearchResults([]);
-                              }
-                            }}
-                            onSubmitEditing={handleSearch}
-                        />
-
-                        {searchResults.length > 0 && (
-                            <FlatList
-                                data={searchResults}
-                                keyExtractor={(item) => item._id}
-                                renderItem={({ item }) => (
-                                    <TouchableOpacity
-                                        style={styles.searchResultItem}
-                                        onPress={() => handleChooseComparisonProduct(item)}
-                                    >
-                                      <Image
-                                          source={{ uri: item.images[0] || "https://via.placeholder.com/40" }}
-                                          style={styles.searchResultImage}
-                                      />
-                                      <View style={styles.searchResultTextContainer}>
-                                        <Text style={styles.searchResultName} numberOfLines={2}>
-                                          {item.name}
-                                        </Text>
-                                        <Text style={styles.searchResultBrand}>{item.brand}</Text>
-                                      </View>
-                                    </TouchableOpacity>
-                                )}
-                                style={styles.searchResultsList}
-                            />
-                        )}
-
-                        {searchResults.length === 0 && searchQuery.length > 0 && (
-                            <Text style={styles.noResultsText}>
-                              Không tìm thấy sản phẩm phù hợp
-                            </Text>
-                        )}
-
-                        {searchQuery.length === 0 && (
-                            <View style={styles.emptySlotContent}>
-                              <FontAwesome name="plus" size={24} color="#aaa" />
-                              <Text style={styles.emptySlotText}>
-                                Chọn sản phẩm để so sánh
-                              </Text>
-                            </View>
-                        )}
-                      </View>
-                  ) : (
-                      // Selected product
-                      <>
-                        <Image
-                            source={{
-                              uri: comparisonProduct.images[0] || "https://via.placeholder.com/120",
-                            }}
-                            style={styles.compareImage}
-                            resizeMode="cover"
-                        />
-                        <Text style={styles.compareProductName} numberOfLines={2} ellipsizeMode="tail">
-                          {comparisonProduct.name}
-                        </Text>
-                        <Text style={styles.compareProductBrand}>{comparisonProduct.brand}</Text>
-                        <Text style={styles.compareProductPrice}>
-                          {comparisonProduct.discountedPrice.toLocaleString()}đ
-                        </Text>
-                        <TouchableOpacity
-                            style={styles.changeProductButton}
-                            onPress={() => setComparisonProduct(null)}
-                        >
-                          <Text style={styles.changeProductButtonText}>Thay đổi</Text>
-                        </TouchableOpacity>
-                      </>
-                  )}
-                </View>
-              </View>
-
-              <View style={styles.compareModalFooter}>
-                <TouchableOpacity
-                    style={[
-                      styles.compareButton,
-                      !comparisonProduct && styles.disabledButton
-                    ]}
-                    onPress={handleCompare}
-                    disabled={!comparisonProduct}
-                >
-                  <FontAwesome name="exchange" size={18} color="#fff" style={styles.compareButtonIcon} />
-                  <Text style={styles.compareButtonText}>So sánh</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={styles.closeButton}
-                    onPress={() => setIsCompareModalVisible(false)}
-                >
-                  <Text style={styles.closeButtonText}>Đóng</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      </>
+      </Modal>
+    </>
   );
 }
 

@@ -54,7 +54,6 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       });
 
       if (!response.ok) {
-        console.log("Lỗi khi fetch cart:", response.status);
         return;
       }
 
