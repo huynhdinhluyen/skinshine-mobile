@@ -26,7 +26,7 @@ A mobile e-commerce application for skincare products built with Expo, React Nat
 1. Clone the repository:  
    ```sh
    git clone <repository-url>
-   cd skincare-product-sales-mobile
+   cd skinshine-mobile
    ```
 2. Install dependencies:  
    ```sh
